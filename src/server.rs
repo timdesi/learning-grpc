@@ -1,0 +1,133 @@
+use futures::Stream;
+use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
+use tokio_stream::wrappers::ReceiverStream;
+use std::pin::Pin;
+use tonic::transport::Server;
+use tonic::{Request, Response, Status};
+
+use hello::hello_server::{Hello, HelloServer};
+use hello::{HelloRequest, HelloResponse};
+use learning_grpc::hello;
+
+use downloader::downloader_server::{Downloader, DownloaderServer};
+use downloader::{
+    CancelRequest, DataChunk, DownloadRequest, DownloadResponse, DownloadResult, GetRequest,
+};
+use learning_grpc::downloader;
+use log::{debug, error, info};
+use dotenv::dotenv;
+
+#[derive(Default)]
+pub struct DownloaderService {}
+
+#[tonic::async_trait]
+impl Hello for DownloaderService {
+    async fn hello_world(
+        &self,
+        _: Request<HelloRequest>,
+    ) -> Result<Response<HelloResponse>, Status> {
+        let response = HelloResponse {
+            message: "Hello, World!".to_string(),
+        };
+        Ok(Response::new(response))
+    }
+}
+
+#[tonic::async_trait]
+impl Downloader for DownloaderService {
+    type DownloadStream =
+        Pin<Box<dyn Stream<Item = Result<DownloadResponse, Status>> + Send + Sync + 'static>>;
+    type GetStream = Pin<Box<dyn Stream<Item = Result<DataChunk, Status>> + Send + Sync + 'static>>;
+
+    async fn get(&self, request: Request<GetRequest>) -> Result<Response<Self::GetStream>, Status> {
+        
+        let (tx, rx) = mpsc::channel(4);
+
+           //let planets: Vec<u8> = vec![0,0,0];
+
+           tokio::spawn(async move {
+            //let mut stream = tokio_stream::iter(&planets);
+
+            tx.send(Ok(DataChunk {
+                    data: vec![0,1,2],
+                })).await.unwrap();
+
+            // while let Some(planet) = stream.next().await {
+            //     tx.send(Ok(DataChunk {
+            //         data: vec![planet.clone()],
+            //     }))
+            //     .await
+            //     .unwrap();
+            // }
+        });
+
+        Ok(Response::new(Box::pin(
+            ReceiverStream::new(rx),
+        )))
+
+    }
+
+    async fn download(
+        &self,
+        _: Request<DownloadRequest>,
+    ) -> Result<Response<Self::DownloadStream>, Status> {
+                
+        let (tx, rx) = mpsc::channel(4);
+
+           //let planets: Vec<u8> = vec![0,0,0];
+
+           tokio::spawn(async move {
+            //let mut stream = tokio_stream::iter(&planets);
+
+            tx.send(Ok(DownloadResponse {
+                    ..Default::default()
+                })).await.unwrap();
+
+            // while let Some(planet) = stream.next().await {
+            //     tx.send(Ok(DataChunk {
+            //         data: vec![planet.clone()],
+            //     }))
+            //     .await
+            //     .unwrap();
+            // }
+        });
+
+        Ok(Response::new(Box::pin(
+            ReceiverStream::new(rx),
+        )))
+
+    }
+
+    async fn cancel_download(
+        &self,
+        _: Request<CancelRequest>,
+    ) -> Result<Response<DownloadResult>, Status> {
+        let response = DownloadResult {
+            code: 0,
+            downloaded_artifact: "downloaded artifact".to_string(),
+            text_message: "text message".to_string(),
+        };
+        Ok(Response::new(response))
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    dotenv().ok();
+    env_logger::init();
+
+    info!("Starting downloader server");
+
+    let addr = std::env::var("GRPC_SERVER_ADDRESS")?.parse()?;
+
+    let srv = DownloaderService::default();
+    Server::builder()
+        //.add_service(HelloServer::new(srv))
+        .add_service(DownloaderServer::new(srv))
+        .serve(addr)
+        .await?;
+
+    Ok(())
+}

@@ -1,0 +1,29 @@
+[package]
+name = "learning-grpc"
+version = "0.1.0"
+edition = "2021"
+authors = ["Desislav Iliev <desislav.iliev@bosch.io>"]
+
+[lib]
+path = "./src/lib.rs"
+
+[[bin]]
+name="server"
+path="./src/server.rs"
+
+[[bin]]
+name="client"
+path="./src/client.rs"
+
+[dependencies]
+tonic = "0.7.2"
+tokio = { version = "1.19.2", features = ["macros", "rt-multi-thread"] }
+tokio-stream = "0.1.9"
+prost = "0.10.4"
+futures = "0.3.21"
+log = "0.4.17"
+env_logger = "0.9.0"
+dotenv = "0.15.0"
+
+[build-dependencies]
+tonic-build = "0.7.2"

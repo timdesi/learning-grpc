@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package downloader;
+
+option go_package = "sdv/edge/downloader";
+
+// The Downloader service definition.
+service Downloader {
+    // Triggers download operation with progres monitoring.
+    rpc Download(DownloadRequest) returns (stream DownloadResponse);
+    
+    // Cancels a running download operation.
+    rpc CancelDownload(CancelRequest) returns (DownloadResult);
+    
+    // Returns the contents of a downloaded artifact as stream of bytes.
+    rpc Get(GetRequest) returns (stream DataChunk);
+
+}
+
+
+/*----- Download -----*/
+
+message DownloadRequest {
+    
+    // Software artifact to be downloaded.
+    SoftwareArtifact software_artifact = 1;
+    
+    // Extra options that may be needed for successful downloading, e.g. http 
+    // headers. [Optional].
+    repeated Option options = 2;
+    
+    // Parameters to configure retries. [Optional].
+    RetryParameters retry = 3;
+} 
+
+
+message SoftwareArtifact {
+
+    // URL for downloading.
+    string url = 1;
+    
+    // Artifact's filename.
+    string filename = 2;
+    
+    // Expected artifact size. [Optional].
+    uint64 size = 3;
+    
+    // optional checksum validation parameters
+
+    // Algorithm for checksum calculation. [Optional].
+    enum HashAlg {
+        HASH_ALG_UNSPECIFIED = 0;
+        HASH_ALG_SHA256 = 1;
+        HASH_ALG_SHA1 = 2;
+        HASH_ALG_MD5 = 3;
+    }
+    HashAlg hash_alg = 4;
+    
+    // Checksum value (as hex string?). [Optional].
+    bytes hash = 5;
+}
+
+// Key-value pair
+message Option {
+    string key = 1;
+    string value = 2;
+}
+
+// Parameters to configure retries. 
+message RetryParameters {
+    // Max number of retries in case of errors. [Optional].
+    uint32 max_retries = 1;
+    
+    // Factor for exponential backoff calculation between retries. [Optional].
+    uint32 backoff_factor = 2;
+    
+    // Time interval for exponential backoff calculation. [Optional].
+    uint32 time_increment = 3;
+}
+
+message DownloadResponse {
+    
+    // ID of the download operation. May be used for cancel request.
+    string operation_id = 1;
+    
+    // 
+    SoftwareArtifact software_artifact = 2;
+    DownloadOperationResponse response = 3;     
+}
+
+message DownloadOperationResponse {
+    oneof response {
+        DownloadProgress progress = 1;
+        DownloadResult result = 2;
+    }
+}
+
+message DownloadProgress {
+    uint64 progress_bytes = 1;
+    uint32 progess_percent = 2;
+    uint32 attempt = 3;
+}
+
+message DownloadResult {
+    
+    enum Code {
+        DOWNLOAD_RESULT_UNSPECIFIED = 0;
+        DOWNLOAD_RESULT_SUCCESS = 1;
+        DOWNLOAD_RESULT_ERROR_DOWNLOAD = 2;
+        DOWNLOAD_RESULT_ERROR_CANCELLED = 3;
+        DOWNLOAD_RESULT_ERROR_SIZE_MISMATCH = 4;
+        DOWNLOAD_RESULT_ERROR_CHECHSUM_FAILED = 5;
+        // ... todo: define additional error codes.
+    }
+    Code code = 1;
+    
+    string downloaded_artifact = 2;
+    string text_message = 3;
+}
+
+
+/*----- Cancel Download -----*/
+
+message CancelRequest {
+    // ID of the download operation to cancel.
+    string operation_id = 1;
+}
+
+
+/*----- Get -----*/
+
+message GetRequest {
+    // Endpoint of the downloaded_artifact, returned by Download operation.
+    string downloaded_artifact = 1;
+}
+
+message DataChunk {
+    // Data bytes.
+    bytes data = 1;
+}
